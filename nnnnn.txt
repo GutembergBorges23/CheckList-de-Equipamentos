@@ -1,0 +1,19 @@
+verde - #72F2CE
+rosa - #E70080
+azul - #4E51FF
+
+
+dCalendario = ADDCOLUMNS(
+    CALENDAR(DATE(2021,01,01), DATE(2023,12,31)),
+"Ano", FORMAT([Date], "YYYY"),
+"Mês", MONTH([Date]),
+"Mês Abrev", FORMAT([Date], "MMM"),
+"Mês Ano", FORMAT([Date], "MMM")&" "&YEAR([Date]),
+"Dia", FORMAT([Date], "DDD"),
+"Semana", WEEKNUM([Date],1)
+)
+
+
+IN {"PL13",	"PL61",	"PL62",	"PL63",	"PL64",	"PL65",	"PL66",	"PL67",	"PL68",	"PL69",	"PL70",	"PL71",	"PL72",	"PL73",	"PL74",	"PL75",	"PL76",	"PL77",	"PL78",	"PL79",	"PL80",	"PL81",	"PL82",	"PL83",	"PL84",	"PL85",	"PL86",	"PL87",	"PL88",	"PL89",	"PL91",	"PL92",	"PLBF"}
+
+{"PL13" || "PL61" || "PL62" || "PL63" || "PL64" || "PL65" || "PL66" || "PL67" || "PL68" || "PL69" || "PL70" || "PL71" ||"PL72" ||"PL73" || "PL74" || "PL75" || "PL76" || "PL77" || "PL78" || "PL79" || "PL80" || "PL81" || "PL82" || "PL83" || "PL84" || "PL85" ||"PL86" || "PL87"|| "PL88"|| "PL89" || "PL91" || "PL92" ||"PLBF"}
