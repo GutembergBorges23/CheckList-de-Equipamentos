@@ -1,4 +1,5 @@
 import pandas as pd
+from datetime import timedelta
 import datetime as dt
 import sys
 import warnings
@@ -19,6 +20,19 @@ df_rebocador = pd.DataFrame()
 df_transpaleteira = pd.DataFrame()
 df_feriados = pd.DataFrame()
 dEquipamento = pd.DataFrame()
+
+
+# Função para preencher valores ausentes na coluna Hora de Inicio
+def preencher_hora(row):
+    if pd.isna(row["Hora de início"]):  # Verifica se o valor está ausente
+        data = row["Qual Data Será Realizada o Check?"] # Converte para objeto
+        if "1" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "1"
+            return data + timedelta(hours=6)  # Adiciona 06:00:00
+        elif "2" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "2"
+            return data + timedelta(hours=14)  # Adiciona 14:00:00
+        elif "3" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "3"
+            return data + timedelta(hours=22)  # Adiciona 22:00:00
+    return row["Hora de início"]
 
 
 def remover_duplicados(lista):
@@ -187,6 +201,20 @@ def carregar_dados(user):
     df_feriados = pd.read_excel(tables_path[15], dtype=object)
     # noinspection PyArgumentList
     dEquipamento = pd.read_excel(tables_path[16], dtype=object)
+
+    # Preenchendo os campos vazio na coluna Hora Início
+
+    df_matrim_manual['Hora de Início'] = df_matrim_manual.apply(preencher_hora, axis=1)
+    df_emp_contrabalancada['Hora de Início'] = df_emp_contrabalancada.apply(preencher_hora, axis=1)
+    df_jack_stand['Hora de Início'] = df_jack_stand.apply(preencher_hora, axis=1)
+    df_emp_glp['Hora de Início'] = df_emp_glp.apply(preencher_hora, axis=1)
+    df_emp_pantografica['Hora de Início'] = df_emp_pantografica.apply(preencher_hora, axis=1)
+    df_emp_retratil['Hora de Início'] = df_emp_retratil.apply(preencher_hora, axis=1)
+    df_emp_trilateral['Hora de Início'] = df_emp_trilateral.apply(preencher_hora, axis=1)
+    df_paleteira_mpc['Hora de Início'] = df_paleteira_mpc.apply(preencher_hora, axis=1)
+    df_paleteira_mp22['Hora de Início'] = df_paleteira_mp22.apply(preencher_hora, axis=1)
+    df_rebocador['Hora de Início'] = df_rebocador.apply(preencher_hora, axis=1)
+    df_transpaleteira['Hora de Início'] = df_transpaleteira.apply(preencher_hora, axis=1)
 
     print('Upload da base de dados concluido!')
 
