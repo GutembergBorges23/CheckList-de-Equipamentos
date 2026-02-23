@@ -1,8 +1,19 @@
 import pandas as pd
-from datetime import timedelta
 import datetime as dt
 import sys
 import warnings
+import unicodedata
+
+# Normalizar
+def normalizar_colunas(df):
+    df.columns = [
+        unicodedata.normalize('NFKD', col)
+        .encode('ascii', 'ignore')
+        .decode('utf-8')
+        .strip()
+        for col in df.columns
+    ]
+    return df
 
 # ignorar problema de versionamento
 warnings.simplefilter(action="ignore", category=FutureWarning)
@@ -22,17 +33,38 @@ df_feriados = pd.DataFrame()
 dEquipamento = pd.DataFrame()
 
 
-# Função para preencher valores ausentes na coluna Hora de Inicio
-def preencher_hora(row):
-    if pd.isna(row["Hora de início"]):  # Verifica se o valor está ausente
-        data = row["Qual Data Será Realizada o Check?"] # Converte para objeto
-        if "1" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "1"
-            return data + timedelta(hours=6)  # Adiciona 06:00:00
-        elif "2" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "2"
-            return data + timedelta(hours=14)  # Adiciona 14:00:00
-        elif "3" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "3"
-            return data + timedelta(hours=22)  # Adiciona 22:00:00
-    return row["Hora de início"]
+"""def preencher_hora(row):
+    if pd.isna(row['Start time']):
+        data = pd.to_datetime(row["Qual Data Será Realizada o Check?"], errors='coerce')
+        if pd.notna(data):
+            turno = str(row["Qual  turno será realizado o check list do equipamento?"])
+
+            # Convertendo a hora de turno para datetime.time
+            if "1" in turno:
+                return data + timedelta(hours=6)
+            elif "2" in turno:
+                return data + timedelta(hours=14)
+            elif "3" in turno:
+                return data + timedelta(hours=22)
+
+    return row['Start time']
+
+
+def preencher_fim(row):
+    if pd.isna(row['End time']):
+        data = pd.to_datetime(row["Qual Data Será Realizada o Check?"], errors='coerce')
+        if pd.notna(data):
+            turno = str(row["Qual  turno será realizado o check list do equipamento?"])
+
+            # Convertendo a hora de turno para datetime.time
+            if "1" in turno:
+                return data + timedelta(hours=6, minutes=5)
+            elif "2" in turno:
+                return data + timedelta(hours=14, minutes=5)
+            elif "3" in turno:
+                return data + timedelta(hours=22, minutes=5)
+
+    return row['End time']"""
 
 
 def remover_duplicados(lista):
@@ -84,58 +116,80 @@ def update_hist(calendar, df_ativo, cod_ativo, sort_columns):
     s_turno = dt.time(13, 0, 0)
     t_turno = dt.time(21, 0, 0)
 
+    # Filtrando o df_ativo com base no Ativo específico
     df_ativo = df_ativo[df_ativo['Ativo'] == cod_ativo]
-    df_ativo = df_ativo[['Data da Realização', 'Duração', 'Hora da Realização', 'Nome', 'Observação']]
+    df_ativo = df_ativo[['Equipamento', 'Data da Realizacao', 'Duracao', 'Hora da Realizacao', 'Nome', 'Observacao']]
 
+    # Inicializando a coluna de Turno
     df_ativo['Turno'] = ' '
 
+    # Definindo o Turno com base na Hora da Realização
     df_ativo.loc[
-        (df_ativo['Hora da Realização'] >= p_turno) &
-        (df_ativo['Hora da Realização'] < s_turno),
+        (df_ativo['Hora da Realizacao'] >= p_turno) &
+        (df_ativo['Hora da Realizacao'] < s_turno),
         'Turno'
     ] = '1° Turno'
+
     df_ativo.loc[
-        (df_ativo['Hora da Realização'] >= s_turno) &
-        (df_ativo['Hora da Realização'] < t_turno),
+        (df_ativo['Hora da Realizacao'] >= s_turno) &
+        (df_ativo['Hora da Realizacao'] < t_turno),
         'Turno'
     ] = '2° Turno'
+
     df_ativo.loc[
-        (df_ativo['Hora da Realização'] >= t_turno) |
-        (df_ativo['Hora da Realização'] < p_turno),
+        (df_ativo['Hora da Realizacao'] >= t_turno) |
+        (df_ativo['Hora da Realizacao'] < p_turno),
         'Turno'
     ] = '3° Turno'
 
-    df_ativo['Data da Realização'] = pd.to_datetime(df_ativo['Data da Realização'], errors='coerce').dt.date
-    older_date = df_ativo.loc[df_ativo['Data da Realização'].notnull(), 'Data da Realização'].min()
-    print(older_date)
-    calendar = calendar.loc[calendar['Data da Realização'] >= older_date]
-    df_ativo = df_ativo.astype({'Data da Realização': object})
+    # Verificando e corrigindo a Data da Realização
+    df_ativo['Data da Realizacao'] = pd.to_datetime(df_ativo['Data da Realizacao'], errors='coerce').dt.date
 
-    df_ativo = pd.merge(calendar, df_ativo, on=['Data da Realização', 'Turno'], how='outer')
+    # Garantir que datas válidas existam
+    df_ativo = df_ativo[df_ativo['Data da Realizacao'].notnull()]
+
+    # Verificar qual a data mais antiga
+    older_date = df_ativo['Data da Realizacao'].min()
+    print(f"Data mais antiga: {older_date}")
+
+    # Filtrar o calendário com base na data mais antiga
+    calendar = calendar[calendar['Data da Realizacao'] >= older_date]
+
+    # Atribuindo o código de Ativo e Status
+    df_ativo['Status'] = 'OK'  # Inicializa todos com OK
+
+    # Merge dos dados com o calendário
+    df_ativo = pd.merge(calendar, df_ativo, on=['Data da Realizacao', 'Turno'], how='outer')
+
+    # Atualizando Status para NOK se Status for nulo
+    df_ativo.loc[df_ativo['Status'].isnull(), 'Status'] = 'NOK'
+    df_ativo.loc[df_ativo['Equipamento'].isnull(), 'Equipamento'] = equipamento
     df_ativo['Ativo'] = cod_ativo
-    df_ativo['Status'] = 'OK'
-    df_ativo.loc[df_ativo['Duração'].isnull(), 'Status'] = 'NOK'
+
+    # Identificando duplicações de Data e Turno
+    # Marcar as duplicações como 'REP' e corrigir o Status para OK ou NOK conforme necessário
+    filtro = df_ativo.duplicated(subset=['Data da Realizacao', 'Turno'], keep="first")
+    df_ativo.loc[filtro, 'Status'] = 'REP'
 
     df_ativo.sort_values(
-        ['Ativo', 'Data da Realização', 'Hora da Realização'],
+        ['Ativo', 'Data da Realizacao', 'Hora da Realizacao'],
         ascending=False,
         inplace=True)
-
-    df_ativo.loc[
-        df_ativo[['Data da Realização', 'Turno']].duplicated(keep='last'),
-        'Status'
-    ] = 'REP'
 
     return df_ativo[sort_columns]
 
 
 def by_equipamentos(calendar, df_ativo, colunas):
     df_resultado = pd.DataFrame(columns=colunas)
+
     for cod_ativo in df_ativo['Ativo'].drop_duplicates():
-        df_resultado = pd.concat([df_resultado, update_hist(calendar, df_ativo, cod_ativo, colunas)])
+        # print(f"Processando ativo: {cod_ativo}")  # Verifica os códigos únicos
+        temp_df = update_hist(calendar, df_ativo, cod_ativo, colunas)
+
+        # print(temp_df)  # Verifica os dados antes da concatenação
+        df_resultado = pd.concat([df_resultado, temp_df], ignore_index=True)
 
     return df_resultado
-
 
 def carregar_dados(user):
     global df_emp_contrabalancada
@@ -175,49 +229,21 @@ def carregar_dados(user):
 
     print('Carregando base de dados...')
 
-    # noinspection PyArgumentList
-    df_emp_contrabalancada = pd.read_excel(tables_path[0], dtype=object)
-    # noinspection PyArgumentList
-    df_jack_stand = pd.read_excel(tables_path[2], dtype=object)
-    # noinspection PyArgumentList
-    df_matrim_manual = pd.read_excel(tables_path[3], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_glp = pd.read_excel(tables_path[5], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_pantografica = pd.read_excel(tables_path[7], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_retratil = pd.read_excel(tables_path[8], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_trilateral = pd.read_excel(tables_path[9], dtype=object)
-    # noinspection PyArgumentList
-    df_paleteira_mp22 = pd.read_excel(tables_path[11], dtype=object)
-    # noinspection PyArgumentList
-    df_paleteira_mpc = pd.read_excel(tables_path[12], dtype=object)
-    # noinspection PyArgumentList
-    df_rebocador = pd.read_excel(tables_path[13], dtype=object)
-    # noinspection PyArgumentList
-    df_transpaleteira = pd.read_excel(tables_path[14], dtype=object)
-    # noinspection PyArgumentList
-    df_feriados = pd.read_excel(tables_path[15], dtype=object)
-    # noinspection PyArgumentList
-    dEquipamento = pd.read_excel(tables_path[16], dtype=object)
-
-    # Preenchendo os campos vazio na coluna Hora Início
-
-    df_matrim_manual['Hora de Início'] = df_matrim_manual.apply(preencher_hora, axis=1)
-    df_emp_contrabalancada['Hora de Início'] = df_emp_contrabalancada.apply(preencher_hora, axis=1)
-    df_jack_stand['Hora de Início'] = df_jack_stand.apply(preencher_hora, axis=1)
-    df_emp_glp['Hora de Início'] = df_emp_glp.apply(preencher_hora, axis=1)
-    df_emp_pantografica['Hora de Início'] = df_emp_pantografica.apply(preencher_hora, axis=1)
-    df_emp_retratil['Hora de Início'] = df_emp_retratil.apply(preencher_hora, axis=1)
-    df_emp_trilateral['Hora de Início'] = df_emp_trilateral.apply(preencher_hora, axis=1)
-    df_paleteira_mpc['Hora de Início'] = df_paleteira_mpc.apply(preencher_hora, axis=1)
-    df_paleteira_mp22['Hora de Início'] = df_paleteira_mp22.apply(preencher_hora, axis=1)
-    df_rebocador['Hora de Início'] = df_rebocador.apply(preencher_hora, axis=1)
-    df_transpaleteira['Hora de Início'] = df_transpaleteira.apply(preencher_hora, axis=1)
+    df_emp_contrabalancada = normalizar_colunas(pd.read_excel(tables_path[0], dtype=object))
+    df_jack_stand = normalizar_colunas(pd.read_excel(tables_path[2], dtype=object))
+    df_matrim_manual = normalizar_colunas(pd.read_excel(tables_path[3], dtype=object))
+    df_emp_glp = normalizar_colunas(pd.read_excel(tables_path[5], dtype=object))
+    df_emp_pantografica = normalizar_colunas(pd.read_excel(tables_path[7], dtype=object))
+    df_emp_retratil = normalizar_colunas(pd.read_excel(tables_path[8], dtype=object))
+    df_emp_trilateral = normalizar_colunas(pd.read_excel(tables_path[9], dtype=object))
+    df_paleteira_mp22 = normalizar_colunas(pd.read_excel(tables_path[11], dtype=object))
+    df_paleteira_mpc = normalizar_colunas(pd.read_excel(tables_path[12], dtype=object))
+    df_rebocador = normalizar_colunas(pd.read_excel(tables_path[13], sheet_name='Form1', dtype=object))
+    df_transpaleteira = normalizar_colunas(pd.read_excel(tables_path[14], dtype=object))
+    df_feriados = normalizar_colunas(pd.read_excel(tables_path[15], dtype=object))
+    dEquipamento = normalizar_colunas(pd.read_excel(tables_path[16], dtype=object))
 
     print('Upload da base de dados concluido!')
-
 
 if __name__ == '__main__':
 
@@ -259,26 +285,32 @@ if __name__ == '__main__':
     # common columns names to assign and rename in dataframes
 
     for_rename = {
-        'Qual Ativo Será Realizado o Check?': 'Ativo',
-        'Qual Ativo Será Realizado o Cheque?': 'Ativo',
-        'Qual Ativo Será Realizado o Check?2': 'Ativo',
+        'Qual Ativo Sera Realizado o Check?': 'Ativo',
+        'Qual Ativo Sera Realizado o Cheque?': 'Ativo',
+        'Qual Ativo Sera Realizado o Check?2': 'Ativo',
         'Qual o Ativo do Equipamento?': 'Ativo',
-        'Qual Equipamento Será Realizado o Check?': 'Equipamentos',
+
         'Qual Equipamento Sera Realizado o Check?': 'Equipamentos',
-        'Qual equipamento será realizado o cheque?': 'Equipamentos',
-        'Qual Setor Será Realizado o Check': 'Setor',
-        'Qual setor Será Realizado o Check List': 'Setor',
-        'Qual Setor Será Realizado o Check?': 'Setor',
-        'Em Qual Planta Será Realizada o Check?': 'Planta',
-        'Em Qual Planta Será Realizada o Check': 'Planta',
-        'Hora de início': 'Start time',
-        'Hora de conclusão': 'End time',
+        'Qual equipamento sera realizado o cheque?': 'Equipamentos',
+
+        'Qual Setor Sera Realizado o Check': 'Setor',
+        'Qual setor Sera Realizado o Check List': 'Setor',
+        'Qual Setor Sera Realizado o Check?': 'Setor',
+
+        'Em Qual Planta Sera Realizada o Check?': 'Planta',
+        'Em Qual Planta Sera Realizada o Check': 'Planta',
+
+        'Hora de inicio': 'Start time',
+        'Hora de conclusao': 'End time',
+
         'BUZINA?2': 'BUZINA?',
-        'CÓDIGO DE FALHA?2': 'CÓDIGO DE FALHA?',
+        'CODIGO DE FALHA?2': 'CODIGO DE FALHA?',
+
         'Insira seu nome e sobrenome:': 'Nome',
         'Insira seu nome e Sobrenome:': 'Nome',
         'Insira seu nome e sobrenome:2': 'Nome',
-        'Há Alguma Observação?': 'Observação'
+
+        'Ha Alguma Observacao?': 'Observacao'
     }
 
     df_emp_contrabalancada = df_emp_contrabalancada.rename(columns=for_rename)
@@ -293,12 +325,63 @@ if __name__ == '__main__':
     df_rebocador = df_rebocador.rename(columns=for_rename)
     df_transpaleteira = df_transpaleteira.rename(columns=for_rename)
 
+    print("Colunas do df_rebocador depois do rename:")
+    print(df_rebocador.columns.tolist())
+
+    """# Preenchendo os campos vazio na coluna Hora Início
+    df_matrim_manual['Start time'] = df_matrim_manual.apply(preencher_hora, axis=1)
+    df_emp_contrabalancada['Start time'] = df_emp_contrabalancada.apply(preencher_hora, axis=1)
+    df_jack_stand['Start time'] = df_jack_stand.apply(preencher_hora, axis=1)
+    df_emp_glp['Start time'] = df_emp_glp.apply(preencher_hora, axis=1)
+    df_emp_pantografica['Start time'] = df_emp_pantografica.apply(preencher_hora, axis=1)
+    df_emp_retratil['Start time'] = df_emp_retratil.apply(preencher_hora, axis=1)
+    df_emp_trilateral['Start time'] = df_emp_trilateral.apply(preencher_hora, axis=1)
+    df_paleteira_mpc['Start time'] = df_paleteira_mpc.apply(preencher_hora, axis=1)
+    df_paleteira_mp22['Start time'] = df_paleteira_mp22.apply(preencher_hora, axis=1)
+    df_rebocador['Start time'] = df_rebocador.apply(preencher_hora, axis=1)
+    df_transpaleteira['Start time'] = df_transpaleteira.apply(preencher_hora, axis=1)
+
+    # Preenchendo os campos vazio na coluna Hora fim
+    df_matrim_manual['End time'] = df_matrim_manual.apply(preencher_fim, axis=1)
+    df_emp_contrabalancada['End time'] = df_emp_contrabalancada.apply(preencher_fim, axis=1)
+    df_jack_stand['End time'] = df_jack_stand.apply(preencher_fim, axis=1)
+    df_emp_glp['End time'] = df_emp_glp.apply(preencher_fim, axis=1)
+    df_emp_pantografica['End time'] = df_emp_pantografica.apply(preencher_fim, axis=1)
+    df_emp_retratil['End time'] = df_emp_retratil.apply(preencher_fim, axis=1)
+    df_emp_trilateral['End time'] = df_emp_trilateral.apply(preencher_fim, axis=1)
+    df_paleteira_mpc['End time'] = df_paleteira_mpc.apply(preencher_fim, axis=1)
+    df_paleteira_mp22['End time'] = df_paleteira_mp22.apply(preencher_fim, axis=1)
+    df_rebocador['End time'] = df_rebocador.apply(preencher_fim, axis=1)
+    df_transpaleteira['End time'] = df_transpaleteira.apply(preencher_fim, axis=1)"""
+
+
+    def selecionar_colunas_padrao(df):
+        colunas_padrao = ['End time', 'Start time', 'Ativo', 'Nome', 'Observacao']
+        return df[[col for col in colunas_padrao if col in df.columns]]
+
+
+    lista_dfs = [
+        df_emp_contrabalancada,
+        df_jack_stand,
+        df_matrim_manual,
+        df_emp_glp,
+        df_emp_pantografica,
+        df_emp_retratil,
+        df_emp_trilateral,
+        df_paleteira_mp22,
+        df_paleteira_mpc,
+        df_rebocador,
+        df_transpaleteira
+    ]
+
+    lista_dfs = [selecionar_colunas_padrao(df) for df in lista_dfs]
+
     df_emp_contrabalancada = df_emp_contrabalancada[[
         'End time',
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_jack_stand = df_jack_stand[[
@@ -306,7 +389,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_matrim_manual = df_matrim_manual[[
@@ -314,7 +397,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_emp_glp = df_emp_glp[[
@@ -322,7 +405,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_emp_pantografica = df_emp_pantografica[[
@@ -330,7 +413,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_emp_retratil = df_emp_retratil[[
@@ -338,7 +421,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_emp_trilateral = df_emp_trilateral[[
@@ -346,7 +429,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_paleteira_mp22 = df_paleteira_mp22[[
@@ -354,7 +437,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_paleteira_mpc = df_paleteira_mpc[[
@@ -362,7 +445,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_rebocador = df_rebocador[[
@@ -370,7 +453,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     df_transpaleteira = df_transpaleteira[[
@@ -378,7 +461,7 @@ if __name__ == '__main__':
         'Start time',
         'Ativo',
         'Nome',
-        'Observação'
+        'Observacao'
     ]]
 
     # Tipagem de colunas
@@ -398,17 +481,17 @@ if __name__ == '__main__':
 
     # Limpa espaços no começo e no fim da string. ['Ativo']
 
-    df_emp_contrabalancada['Ativo'] = df_emp_contrabalancada['Ativo'].map(lambda string: string.strip())
-    df_jack_stand['Ativo'] = df_jack_stand['Ativo'].map(lambda string: string.strip())
-    df_matrim_manual['Ativo'] = df_matrim_manual['Ativo'].map(lambda string: string.strip())
-    df_emp_glp['Ativo'] = df_emp_glp['Ativo'].map(lambda string: string.strip())
-    df_emp_pantografica['Ativo'] = df_emp_pantografica['Ativo'].map(lambda string: string.strip())
-    df_emp_retratil['Ativo'] = df_emp_retratil['Ativo'].map(lambda string: string.strip())
-    df_emp_trilateral['Ativo'] = df_emp_trilateral['Ativo'].map(lambda string: string.strip())
-    df_paleteira_mp22['Ativo'] = df_paleteira_mp22['Ativo'].map(lambda string: string.strip())
-    df_paleteira_mpc['Ativo'] = df_paleteira_mpc['Ativo'].map(lambda string: string.strip())
-    df_rebocador['Ativo'] = df_rebocador['Ativo'].map(lambda string: string.strip())
-    df_transpaleteira['Ativo'] = df_transpaleteira['Ativo'].map(lambda string: string.strip())
+    df_emp_contrabalancada['Ativo'] = df_emp_contrabalancada['Ativo'].astype(str).str.strip()
+    df_jack_stand['Ativo'] = df_jack_stand['Ativo'].astype(str).str.strip()
+    df_matrim_manual['Ativo'] = df_matrim_manual['Ativo'].astype(str).str.strip()
+    df_emp_glp['Ativo'] = df_emp_glp['Ativo'].astype(str).str.strip()
+    df_emp_pantografica['Ativo'] = df_emp_pantografica['Ativo'].astype(str).str.strip()
+    df_emp_retratil['Ativo'] = df_emp_retratil['Ativo'].astype(str).str.strip()
+    df_emp_trilateral['Ativo'] = df_emp_trilateral['Ativo'].astype(str).str.strip()
+    df_paleteira_mp22['Ativo'] = df_paleteira_mp22['Ativo'].astype(str).str.strip()
+    df_paleteira_mpc['Ativo'] = df_paleteira_mpc['Ativo'].astype(str).str.strip()
+    df_rebocador['Ativo'] = df_rebocador['Ativo'].astype(str).str.strip()
+    df_transpaleteira['Ativo'] = df_transpaleteira['Ativo'].astype(str).str.strip()
 
     # Lista com todos os ativos dos equipamentos e dos checklists
 
@@ -428,7 +511,7 @@ if __name__ == '__main__':
 
     lista_ativo = list(dEquipamento[dEquipamento['Status'] == 'Ativo']['Ativo'])
 
-    # tipagem de datas Start time e end time
+    """# tipagem de datas Start time e end time
 
     df_emp_contrabalancada['Start time'] = pd.to_datetime(df_emp_contrabalancada['Start time'])
     df_emp_contrabalancada['End time'] = pd.to_datetime(df_emp_contrabalancada['End time'])
@@ -451,91 +534,49 @@ if __name__ == '__main__':
     df_rebocador['Start time'] = pd.to_datetime(df_rebocador['Start time'])
     df_rebocador['End time'] = pd.to_datetime(df_rebocador['End time'])
     df_transpaleteira['Start time'] = pd.to_datetime(df_transpaleteira['Start time'])
-    df_transpaleteira['End time'] = pd.to_datetime(df_transpaleteira['End time'])
+    df_transpaleteira['End time'] = pd.to_datetime(df_transpaleteira['End time'])"""
 
     # Tratamento das datas
 
     print('Configurando colunas de datas...')
 
-    df_emp_contrabalancada['Data da Realização'] = df_emp_contrabalancada['Start time'].dt.date
-    df_emp_contrabalancada['Duração'] = (
-            df_emp_contrabalancada['End time'] - df_emp_contrabalancada['Start time']
-    ).dt.seconds
-    df_emp_contrabalancada['Hora da Realização'] = df_emp_contrabalancada['Start time'].dt.time
+    # Tipagem de datas Start time e End time
+    dfs = [
+        df_emp_contrabalancada, df_jack_stand, df_matrim_manual, df_emp_glp, df_emp_pantografica,
+        df_emp_retratil, df_emp_trilateral, df_paleteira_mp22, df_paleteira_mpc, df_rebocador, df_transpaleteira
+    ]
 
-    df_jack_stand['Data da Realização'] = df_jack_stand['Start time'].dt.date
-    df_jack_stand['Duração'] = (
-            df_jack_stand['End time'] - df_jack_stand['Start time']
-    ).dt.seconds
-    df_jack_stand['Hora da Realização'] = df_jack_stand['Start time'].dt.time
+    # Convertendo colunas de data para datetime
+    for df in dfs:
+        df['Start time'] = pd.to_datetime(df['Start time'], errors='coerce')
+        df['End time'] = pd.to_datetime(df['End time'], errors='coerce')
 
-    df_matrim_manual['Data da Realização'] = df_matrim_manual['Start time'].dt.date
-    df_matrim_manual['Duração'] = (
-            df_matrim_manual['End time'] - df_matrim_manual['Start time']
-    ).dt.seconds
-    df_matrim_manual['Hora da Realização'] = df_matrim_manual['Start time'].dt.time
+    # Tratamento das datas
+    for df in dfs:
+        df['Data da Realizacao'] = df['Start time'].dt.date
 
-    df_emp_glp['Data da Realização'] = df_emp_glp['Start time'].dt.date
-    df_emp_glp['Duração'] = (
-            df_emp_glp['End time'] - df_emp_glp['Start time']
-    ).dt.seconds
-    df_emp_glp['Hora da Realização'] = df_emp_glp['Start time'].dt.time
+        # Evita modificar End time se ele já estiver correto
+        df.loc[df['End time'].notnull(), 'End time'] += pd.Timedelta(minutes=5)
 
-    df_emp_pantografica['Data da Realização'] = df_emp_pantografica['Start time'].dt.date
-    df_emp_pantografica['Duração'] = (
-            df_emp_pantografica['End time'] - df_emp_pantografica['Start time']
-    ).dt.seconds
-    df_emp_pantografica['Hora da Realização'] = df_emp_pantografica['Start time'].dt.time
+        # Ajusta a duração considerando apenas registros válidos
+        df['Duracao'] = (df['End time'] - df['Start time']).dt.total_seconds()
 
-    df_emp_retratil['Data da Realização'] = df_emp_retratil['Start time'].dt.date
-    df_emp_retratil['Duração'] = (
-            df_emp_retratil['End time'] - df_emp_retratil['Start time']
-    ).dt.seconds
-    df_emp_retratil['Hora da Realização'] = df_emp_retratil['Start time'].dt.time
-
-    df_emp_trilateral['Data da Realização'] = df_emp_trilateral['Start time'].dt.date
-    df_emp_trilateral['Duração'] = (
-            df_emp_trilateral['End time'] - df_emp_trilateral['Start time']
-    ).dt.seconds
-    df_emp_trilateral['Hora da Realização'] = df_emp_trilateral['Start time'].dt.time
-
-    df_paleteira_mp22['Data da Realização'] = df_paleteira_mp22['Start time'].dt.date
-    df_paleteira_mp22['Duração'] = (
-            df_paleteira_mp22['End time'] - df_paleteira_mp22['Start time']
-    ).dt.seconds
-    df_paleteira_mp22['Hora da Realização'] = df_paleteira_mp22['Start time'].dt.time
-
-    df_paleteira_mpc['Data da Realização'] = df_paleteira_mpc['Start time'].dt.date
-    df_paleteira_mpc['Duração'] = (
-            df_paleteira_mpc['End time'] - df_paleteira_mpc['Start time']
-    ).dt.seconds
-    df_paleteira_mpc['Hora da Realização'] = df_paleteira_mpc['Start time'].dt.time
-
-    df_rebocador['Data da Realização'] = df_rebocador['Start time'].dt.date
-    df_rebocador['Duração'] = (
-            df_rebocador['End time'] - df_rebocador['Start time']
-    ).dt.seconds
-    df_rebocador['Hora da Realização'] = df_rebocador['Start time'].dt.time
-
-    df_transpaleteira['Data da Realização'] = df_transpaleteira['Start time'].dt.date
-    df_transpaleteira['Duração'] = (
-            df_transpaleteira['End time'] - df_transpaleteira['Start time']
-    ).dt.seconds
-    df_transpaleteira['Hora da Realização'] = df_transpaleteira['Start time'].dt.time
+        # Para comparar corretamente, use .dt.time em vez de .strftime
+        df['Hora da Realizacao'] = df['Start time'].dt.time
 
     # Tratando de Ativos sem movimentação
 
     ativos_sem_registro = list(set(lista_ativo).difference(ativos_registrados))
 
-    col_not_mov = ['Ativo', 'Data da Realização', 'Duração', 'Hora da Realização', 'Nome', 'Observação']
+    col_not_mov = ['Ativo', 'Data da Realizacao', 'Duracao', 'Hora da Realizacao', 'Nome', 'Observacao']
 
     df_not_mov = pd.DataFrame(columns=col_not_mov)
 
     for ativo in ativos_sem_registro:
         linha = len(df_not_mov)
         df_not_mov.loc[linha, 'Ativo'] = ativo
-        df_not_mov.loc[linha, 'Data da Realização'] = dt.date.today()
-        df_not_mov.loc[linha, 'Hora da Realização'] = dt.datetime.now().time()
+        df_not_mov.loc[linha, 'Data da Realizacao'] = dt.date.today()
+        df_not_mov.loc[linha, 'Hora da Realizacao'] = dt.datetime.now().time()
 
     # Unificando dataframes
 
@@ -558,13 +599,14 @@ if __name__ == '__main__':
 
     col_historico = [
         'Ativo',
-        'Data da Realização',
-        'Hora da Realização',
-        'Duração',
+        'Equipamento',
+        'Data da Realizacao',
+        'Hora da Realizacao',
+        'Duracao',
         'Nome',
         'Turno',
         'Status',
-        'Observação'
+        'Observacao'
     ]
 
     df_dados_gerais = pd.DataFrame(
@@ -573,15 +615,15 @@ if __name__ == '__main__':
 
     calendario1 = pd.DataFrame(
         ultimos_dias(count_day()),
-        columns=['Data da Realização']
+        columns=['Data da Realizacao']
     )
     calendario2 = pd.DataFrame(
         ultimos_dias(count_day()),
-        columns=['Data da Realização']
+        columns=['Data da Realizacao']
     )
     calendario3 = pd.DataFrame(
         ultimos_dias(count_day()),
-        columns=['Data da Realização']
+        columns=['Data da Realizacao']
     )
 
     calendario1['Turno'] = '1° Turno'
@@ -594,9 +636,10 @@ if __name__ == '__main__':
             calendario2,
             calendario3
         ]
-    ).sort_values(['Data da Realização', 'Turno'])
+    ).sort_values(['Data da Realizacao', 'Turno'])
 
     for equipamento in dict_dataframes:
+        dict_dataframes[equipamento]['Equipamento'] = equipamento
         df_dados_gerais = pd.concat([
             df_dados_gerais,
             by_equipamentos(
@@ -608,10 +651,10 @@ if __name__ == '__main__':
 
     days_alert = pd.DataFrame(
         ultimos_dias(30),
-        columns=['Data da Realização']
+        columns=['Data da Realizacao']
     )
 
-    list_alert = pd.merge(df_dados_gerais, days_alert, on='Data da Realização')
+    list_alert = pd.merge(df_dados_gerais, days_alert, on='Data da Realizacao')
     list_alert = list_alert[list_alert['Status'] == 'NOK']
     list_alert = list_alert['Ativo'].value_counts()
     list_alert = list_alert[list_alert == 90].keys()
@@ -621,6 +664,25 @@ if __name__ == '__main__':
     # df_not_mov['Data da Realização'] = pd.to_datetime(df_not_mov['Data da Realização'])
 
     # df_feriados['Data'] = df_feriados['Data'].dt.date
+
+    rename_final = {
+        'Data da Realizacao': 'Data da Realização',
+        'Hora da Realizacao': 'Hora da Realização',
+        'Duracao': 'Duração',
+        'Observacao': 'Observação'
+    }
+
+    df_dados_gerais = df_dados_gerais.rename(columns=rename_final)
+    df_not_mov = df_not_mov.rename(columns=rename_final)
+    df = df.rename(columns=rename_final)
+
+    rename_dequi = {
+        'Area': 'Área',
+        'Descricao': 'Descrição',
+        'Observacao': 'Observação'
+    }
+
+    dEquipamento = dEquipamento.rename(columns=rename_dequi)
 
     del (
         df_emp_contrabalancada,
@@ -638,7 +700,9 @@ if __name__ == '__main__':
         calendario2,
         calendario3,
         calendario,
-        days_alert
+        days_alert,
+        # df,
+        dfs,
     )
 
     print('Done!')
