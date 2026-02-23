@@ -254,8 +254,8 @@ if __name__ == '__main__':
         'Insira seu nome e Sobrenome:': 'Nome',
         'Insira seu nome e sobrenome:2': 'Nome',
         'Há Alguma Observação?': 'Observação',
-        'Qual  turno será realizado a lista de verificação do equipamento?':
-            'Qual  turno será realizado o check list do equipamento?',
+        'Qual turno será realizado a lista de verificação do equipamento?':
+            'Qual  turno será realizado o check list do equipamento?',
         'Qual Data Sera Realizada o Check?':
             'Qual Data Será Realizada o Check?',
     }
@@ -277,7 +277,7 @@ if __name__ == '__main__':
     df_emp_contrabalancada.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -300,7 +300,7 @@ if __name__ == '__main__':
     df_jack_stand.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'As manoplas de borracha se encontram posicionadas no Jack Stands?',
             'O equipamento está lubrificado?',
@@ -312,7 +312,7 @@ if __name__ == '__main__':
     df_matrim_manual.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'GARFOS SEM RUPTURA E/OU EMPENAMENTOS?',
             'CHASSI ESTÁ EM CONDIÇÕES, SEM GOLPE E/ OU DEFEITOS DA SOLDAGEM?',
@@ -325,7 +325,7 @@ if __name__ == '__main__':
     df_emp_glp.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TRAVA DE CILINDRO GLP?',
             'PAINEL?',
@@ -348,7 +348,7 @@ if __name__ == '__main__':
     df_emp_pantografica.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -370,7 +370,7 @@ if __name__ == '__main__':
     df_emp_retratil.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -390,7 +390,7 @@ if __name__ == '__main__':
     df_emp_trilateral.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado a lista de verificação do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -416,7 +416,7 @@ if __name__ == '__main__':
     df_paleteira_mp22.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TIMÃO?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -433,7 +433,7 @@ if __name__ == '__main__':
     df_paleteira_mpc.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TIMÃO?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -449,7 +449,7 @@ if __name__ == '__main__':
     df_rebocador.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'INDICADOR DE CARGA DE BATERIA?',
             'RODAS?',
@@ -466,7 +466,7 @@ if __name__ == '__main__':
     df_transpaleteira.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno sera realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TIMÃO?',
             'INDICADOR DE CARGA DE BATERIA?',

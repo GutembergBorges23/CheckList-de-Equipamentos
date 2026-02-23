@@ -26,11 +26,11 @@ dEquipamento = pd.DataFrame()
 def preencher_hora(row):
     if pd.isna(row["Hora de início"]):  # Verifica se o valor está ausente
         data = row["Qual Data Será Realizada o Check?"] # Converte para objeto
-        if "1" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "1"
+        if "1" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "1"
             return data + timedelta(hours=6)  # Adiciona 06:00:00
-        elif "2" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "2"
+        elif "2" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "2"
             return data + timedelta(hours=14)  # Adiciona 14:00:00
-        elif "3" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "3"
+        elif "3" in row["Qual  turno será realizado o check list do equipamento?"]:  # Checa se contém "3"
             return data + timedelta(hours=22)  # Adiciona 22:00:00
     return row["Hora de início"]
 
