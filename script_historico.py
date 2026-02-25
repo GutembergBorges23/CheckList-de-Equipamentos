@@ -4,6 +4,7 @@ import sys
 import warnings
 import unicodedata
 
+# Normalizar
 def normalizar_colunas(df):
     df.columns = [
         unicodedata.normalize('NFKD', col)
