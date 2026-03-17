@@ -6,12 +6,15 @@
   <component name="ChangeListManager">
     <list default="true" id="c981fed0-61d3-4fa6-bad6-f4abf778c16b" name="Changes" comment="">
 <<<<<<< HEAD
+<<<<<<< HEAD
       <change beforePath="$PROJECT_DIR$/.idea/Script_CheckList.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/Script_CheckList.iml" afterDir="false" />
 =======
 >>>>>>> aecac521ff9279d1dc67322ab982520894bdaa5f
+=======
+      <change beforePath="$PROJECT_DIR$/.idea/.name" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.name" afterDir="false" />
+>>>>>>> bdf148927df0aecbfb0d6a9e5d7f25b98a79b2bf
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/script_defeito.py" beforeDir="false" afterPath="$PROJECT_DIR$/script_defeito.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/script_historico.py" beforeDir="false" afterPath="$PROJECT_DIR$/script_historico.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,7 +59,7 @@
     &quot;last_opened_file_path&quot;: &quot;C:/Users/gutemberg.gb/PycharmProjects/CheckList&quot;
   }
 }</component>
-  <component name="RunManager" selected="Python.script_historico">
+  <component name="RunManager" selected="Python.script_defeito">
     <configuration name="script_defeito" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="Script_CheckList" />
       <option name="ENV_FILES" value="" />
@@ -103,8 +106,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.script_historico" />
         <item itemvalue="Python.script_defeito" />
+        <item itemvalue="Python.script_historico" />
       </list>
     </recent_temporary>
   </component>

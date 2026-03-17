@@ -143,7 +143,7 @@ def update_hist(calendar, df_ativo, cod_ativo, sort_columns):
     ] = '3° Turno'
 
     # Verificando e corrigindo a Data da Realização
-    df_ativo['Data da Realizacao'] = pd.to_datetime(df_ativo['Data da Realizacao'], errors='coerce').dt.date
+    df_ativo['Data da Realizacao'] = pd.to_datetime(df_ativo['Data da Realizacao'], errors='coerce')
 
     # Garantir que datas válidas existam
     df_ativo = df_ativo[df_ativo['Data da Realizacao'].notnull()]
@@ -206,7 +206,7 @@ def carregar_dados(user):
     global df_feriados
     global dEquipamento
 
-    path_checklist = f'C:\\Users\\' + user + '\\Procter and Gamble\\Grupo Check List - Consulta de Dados Check List\\'
+    path_checklist = 'C:\\Users\\' + user + '\\Procter and Gamble\\Grupo Check List - Consulta de Dados Check List\\'
     tables_path = (
         path_checklist + 'Check List de Equipamento - EMPILHADEIRA CONTRABALANÇADA.xlsx',
         path_checklist + 'Check List de Equipamento -  JACK STAND(antigo).xlsx',
@@ -638,6 +638,10 @@ if __name__ == '__main__':
         ]
     ).sort_values(['Data da Realizacao', 'Turno'])
 
+    calendario['Data da Realizacao'] = pd.to_datetime(
+        calendario['Data da Realizacao']
+    )
+
     for equipamento in dict_dataframes:
         dict_dataframes[equipamento]['Equipamento'] = equipamento
         df_dados_gerais = pd.concat([
@@ -652,6 +656,10 @@ if __name__ == '__main__':
     days_alert = pd.DataFrame(
         ultimos_dias(30),
         columns=['Data da Realizacao']
+    )
+
+    days_alert['Data da Realizacao'] = pd.to_datetime(
+        days_alert['Data da Realizacao']
     )
 
     list_alert = pd.merge(df_dados_gerais, days_alert, on='Data da Realizacao')
