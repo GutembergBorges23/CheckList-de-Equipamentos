@@ -2,6 +2,9 @@ import pandas as pd
 import datetime as dt
 import sys
 import unicodedata
+import os.path
+from datetime import datetime
+import win32com.client as win32
 
 # Normalizar
 def normalizar_colunas(df):
@@ -694,8 +697,228 @@ if __name__ == '__main__':
         df_paleteira_mpc,
         df_rebocador,
         df_transpaleteira,
-        df_ativo,
+        # df_ativo,
         df_feriados
     )
 
-    print('Done!')
+    # ============================================================
+    # BLOCO PARA CONSOLIDAR OS EQUIPAMENTOS COM DEFEITOS
+    # ============================================================
+
+    df_relatorio_def = df_defeitos.copy()
+
+    # Garantir tipo string para merge
+    df_ativo['Ativo'] = df_ativo['Ativo'].astype(str)
+    df_relatorio_def['Ativo'] = df_relatorio_def['Ativo'].astype(str)
+
+    # Merge com base de ativos
+    df_relatorio_def = df_relatorio_def.merge(
+        df_ativo[['Ativo', 'Planta', 'Area']],
+        on='Ativo',
+        how='left'
+    )
+
+    # Ordenar colunas
+    df_relatorio_def = df_relatorio_def[
+        ['Ativo', 'Planta', 'Area', 'Data da Realização',
+         'Hora da Realização', 'Nome', 'Turno', 'Status']
+    ]
+
+    # Garantir formato datetime
+    df_relatorio_def['Data da Realização'] = pd.to_datetime(
+        df_relatorio_def['Data da Realização'], errors='coerce'
+    )
+
+    # Data de hoje
+    data_hoje = pd.Timestamp.today().normalize()
+
+    # Filtrar apenas hoje
+    df_relatorio_def = df_relatorio_def[
+        df_relatorio_def['Data da Realização'].dt.normalize() == data_hoje
+        ]
+
+    # ============================================================
+    # EXPORTAR EXCEL
+    # ============================================================
+
+    arquivo_def = 'df_relatorio_def.xlsx'
+    caminho_defeitos = os.getcwd()
+    caminho_defeitos_xlsx = os.path.join(caminho_defeitos, arquivo_def)
+
+    with pd.ExcelWriter(caminho_defeitos_xlsx, engine="xlsxwriter") as writer:
+        df_relatorio_def.to_excel(
+            writer,
+            sheet_name="Defeitos",
+            index=False,
+            startrow=1,
+            header=False
+        )
+
+        workbook = writer.book
+        worksheet = writer.sheets["Defeitos"]
+
+        max_row, max_col = df_relatorio_def.shape
+
+        column_settings = [{'header': col} for col in df_relatorio_def.columns]
+
+        worksheet.add_table(
+            0, 0, max_row, max_col - 1,
+            {'columns': column_settings, 'name': 'TabelaDefeitos'}
+        )
+
+        # Ajustar largura (tratando vazio)
+        for i, col in enumerate(df_relatorio_def.columns):
+            if not df_relatorio_def.empty:
+                col_width = max(
+                    df_relatorio_def[col].astype(str).map(len).max(),
+                    len(col)
+                ) + 2
+            else:
+                col_width = len(col) + 2
+
+            worksheet.set_column(i, i, col_width)
+
+    # ============================================================
+    # LISTA DE E-MAILS
+    # ============================================================
+
+    lista1_to = [
+        "feitosa.j@pg.com",
+        "fernandes.ff@pg.com",
+        "araujo.ma.1@pg.com",
+        "silva.es.3@pg.com",
+        "fortuna.df.1@pg.com",
+        "araujo.wa.3@pg.com",
+        "alberlane.aa@pg.com",
+        "alves.la@pg.com",
+        "pantoja.np@pg.com",
+        "lima.jl.1@pg.com",
+        "medeiros.rm.1@pg.com",
+        "lopes.j.6@pg.com"
+    ]
+    lista2_cc = [
+        "maciel.lt@pg.com",
+        "correia.zc@pg.com",
+        "brito.tb@pg.com",
+        "ferreira.jf@pg.com"
+        ]
+
+    user_chave = 'Gutemberg Borges'
+
+    # ============================================================
+    # HTML (APENAS UMA TABELA)
+    # ============================================================
+
+    if not df_relatorio_def.empty:
+
+        df_html = df_relatorio_def.copy()
+
+        df_html['Data da Realização'] = df_html['Data da Realização'].dt.strftime('%d/%m/%Y')
+
+        df_html = df_html.sort_values(by='Hora da Realização', ascending=False)
+
+        tabela_html = df_html.to_html(index=False, border=0)
+
+        tabela_html = tabela_html.replace(
+            '<table',
+            '<table style="border-collapse: collapse; width: 100%; font-family: Arial; font-size: 12px;"'
+        ).replace(
+            '<th>',
+            '<th style="background-color:#1f4e79; color:white; padding:6px; text-align:center;">'
+        ).replace(
+            '<td>',
+            '<td style="padding:6px; border-bottom:1px solid #ddd; text-align:center;">'
+        )
+
+        html_defeitos = f"""
+            <h3 style="font-family: Arial; color:#1f4e79;">
+                📋 Relatório de Defeitos
+            </h3>
+
+            <p style="font-family: Arial; font-size: 13px;">
+                Data: <b>{data_hoje.strftime('%d/%m/%Y')}</b>
+            </p>
+
+            {tabela_html}
+        """
+
+    else:
+        html_defeitos = f"""
+            <h3 style="font-family: Arial; color:#1f4e79;">
+                📋 Relatório de Defeitos
+            </h3>
+
+            <p style="font-family: Arial; font-size: 13px;">
+                Data: <b>{data_hoje.strftime('%d/%m/%Y')}</b>
+            </p>
+
+            <p style="font-family: Arial; font-size: 14px; color: green;">
+                ✅ Nenhum defeito registrado hoje.
+            </p>
+        """
+
+    # ============================================================
+    # ENVIO DE E-MAIL
+    # ============================================================
+
+    outlook = win32.Dispatch("outlook.application")
+    email = outlook.CreateItem(0)
+
+    email.To = "; ".join(lista1_to)
+    email.Cc = "; ".join(lista2_cc)
+    email.Subject = "⚠️ Relatório de Defeitos - Checklist de Equipamentos ⚠️"
+
+    email.HTMLBody = f"""
+    <html>
+    <head>
+    <style>
+        table {{
+            border-collapse: collapse;
+            width: 100%;
+            font-family: Arial, sans-serif;
+            font-size: 12px;
+        }}
+        th {{
+            background-color: #1f4e79;
+            color: white;
+            padding: 8px;
+            text-align: center;
+        }}
+        td {{
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: center;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f2f2f2;
+        }}
+    </style>
+    </head>
+
+    <body>
+        <p>Prezados,</p>
+
+        <p>
+            Segue a tabela de equipamentos com defeitos atualizada 
+            ({datetime.now().strftime('%H:%M')}).
+        </p>
+
+        {html_defeitos}
+
+        <p>
+            At.te,<br>
+            {user_chave}
+        </p>
+    </body>
+    </html>
+    """
+
+    # Anexo (com verificação)
+    if os.path.exists(caminho_defeitos_xlsx):
+        email.Attachments.Add(caminho_defeitos_xlsx)
+
+    email.Send()
+
+    del df_ativo
+
+    print("E-mail enviado com sucesso!")
