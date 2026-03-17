@@ -1,7 +1,17 @@
 import pandas as pd
 import datetime as dt
 import sys
+import unicodedata
 
+def normalizar_colunas(df):
+    df.columns = [
+        unicodedata.normalize('NFKD', col)
+        .encode('ascii', 'ignore')
+        .decode('utf-8')
+        .strip()
+        for col in df.columns
+    ]
+    return df
 
 df_emp_contrabalancada = pd.DataFrame()
 df_jack_stand = pd.DataFrame()
@@ -140,32 +150,19 @@ def carregar_dados(user):
 
     print('Carregando base de dados...')
 
-    # noinspection PyArgumentList
-    df_emp_contrabalancada = pd.read_excel(tables_path[0], dtype=object)
-    # noinspection PyArgumentList
-    df_jack_stand = pd.read_excel(tables_path[2], dtype=object)
-    # noinspection PyArgumentList
-    df_matrim_manual = pd.read_excel(tables_path[3], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_glp = pd.read_excel(tables_path[5], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_pantografica = pd.read_excel(tables_path[7], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_retratil = pd.read_excel(tables_path[8], dtype=object)
-    # noinspection PyArgumentList
-    df_emp_trilateral = pd.read_excel(tables_path[9], dtype=object)
-    # noinspection PyArgumentList
-    df_paleteira_mp22 = pd.read_excel(tables_path[11], dtype=object)
-    # noinspection PyArgumentList
-    df_paleteira_mpc = pd.read_excel(tables_path[12], dtype=object)
-    # noinspection PyArgumentList
-    df_rebocador = pd.read_excel(tables_path[13], dtype=object)
-    # noinspection PyArgumentList
-    df_transpaleteira = pd.read_excel(tables_path[14], dtype=object)
-    # noinspection PyArgumentList
-    df_feriados = pd.read_excel(tables_path[15], dtype=object)
-    # noinspection PyArgumentList
-    df_ativo = pd.read_excel(tables_path[16], dtype=object)
+    df_emp_contrabalancada = normalizar_colunas(pd.read_excel(tables_path[0], dtype=object))
+    df_jack_stand = normalizar_colunas(pd.read_excel(tables_path[2], dtype=object))
+    df_matrim_manual = normalizar_colunas(pd.read_excel(tables_path[3], dtype=object))
+    df_emp_glp = normalizar_colunas(pd.read_excel(tables_path[5], dtype=object))
+    df_emp_pantografica = normalizar_colunas(pd.read_excel(tables_path[7], dtype=object))
+    df_emp_retratil = normalizar_colunas(pd.read_excel(tables_path[8], dtype=object))
+    df_emp_trilateral = normalizar_colunas(pd.read_excel(tables_path[9], dtype=object))
+    df_paleteira_mp22 = normalizar_colunas(pd.read_excel(tables_path[11], dtype=object))
+    df_paleteira_mpc = normalizar_colunas(pd.read_excel(tables_path[12], dtype=object))
+    df_rebocador = normalizar_colunas(pd.read_excel(tables_path[13], sheet_name='Form1', dtype=object))
+    df_transpaleteira = normalizar_colunas(pd.read_excel(tables_path[14], dtype=object))
+    df_feriados = normalizar_colunas(pd.read_excel(tables_path[15], dtype=object))
+    df_ativo = normalizar_colunas(pd.read_excel(tables_path[16], dtype=object))
 
     print('Upload da base de dados comcluido!')
 
@@ -234,30 +231,33 @@ if __name__ == '__main__':
     # Renomear colunas
 
     for_rename = {
+        'Qual Ativo Sera Realizado o Check?': 'Ativo',
+        'Qual Ativo Sera Realizado o Cheque?': 'Ativo',
+        'Qual Ativo Sera Realizado o Check?2': 'Ativo',
         'Qual Ativo Será Realizado o Check?': 'Ativo',
-        'Qual Ativo Será Realizado o Cheque?': 'Ativo',
-        'Qual Ativo Será Realizado o Check?2': 'Ativo',
         'Qual o Ativo do Equipamento?': 'Ativo',
-        'Qual Equipamento Será Realizado o Check?': 'Equipamentos',
+
         'Qual Equipamento Sera Realizado o Check?': 'Equipamentos',
-        'Qual equipamento será realizado o cheque?': 'Equipamentos',
-        'Qual Setor Será Realizado o Check': 'Setor',
-        'Qual setor Será Realizado o Check List': 'Setor',
-        'Qual Setor Será Realizado o Check?': 'Setor',
-        'Em Qual Planta Será Realizada o Check?': 'Planta',
-        'Em Qual Planta Será Realizada o Check': 'Planta',
-        'Hora de início': 'Start time',
-        'Hora de conclusão': 'End time',
+        'Qual equipamento sera realizado o cheque?': 'Equipamentos',
+
+        'Qual Setor Sera Realizado o Check': 'Setor',
+        'Qual setor Sera Realizado o Check List': 'Setor',
+        'Qual Setor Sera Realizado o Check?': 'Setor',
+
+        'Em Qual Planta Sera Realizada o Check?': 'Planta',
+        'Em Qual Planta Sera Realizada o Check': 'Planta',
+
+        'Hora de inicio': 'Start time',
+        'Hora de conclusao': 'End time',
+
         'BUZINA?2': 'BUZINA?',
-        'CÓDIGO DE FALHA?2': 'CÓDIGO DE FALHA?',
+        'CODIGO DE FALHA?2': 'CODIGO DE FALHA?',
+
         'Insira seu nome e sobrenome:': 'Nome',
         'Insira seu nome e Sobrenome:': 'Nome',
         'Insira seu nome e sobrenome:2': 'Nome',
-        'Há Alguma Observação?': 'Observação',
-        'Qual turno será realizado a lista de verificação do equipamento?':
-            'Qual  turno será realizado o check list do equipamento?',
-        'Qual Data Sera Realizada o Check?':
-            'Qual Data Será Realizada o Check?',
+
+        'Ha Alguma Observacao?': 'Observacao'
     }
 
     df_emp_contrabalancada = df_emp_contrabalancada.rename(columns=for_rename)
@@ -277,7 +277,7 @@ if __name__ == '__main__':
     df_emp_contrabalancada.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -294,38 +294,41 @@ if __name__ == '__main__':
             'MANGUEIRAS HIDRÁLICAS',
             'LIMPEZA EXTERNA?',
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_jack_stand.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'As manoplas de borracha se encontram posicionadas no Jack Stands?',
             'O equipamento está lubrificado?',
             'Há identificação de capacidade e ativo?'
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_matrim_manual.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'GARFOS SEM RUPTURA E/OU EMPENAMENTOS?',
             'CHASSI ESTÁ EM CONDIÇÕES, SEM GOLPE E/ OU DEFEITOS DA SOLDAGEM?',
             'HÁ IDENTIFICAÇÃO DE CAPACIDADE DE CARGA?',
             'HÁ IDENTIFICAÇÃO DE ETIQUETA DE INSPEÇÃO DO EQUIPAMENTO?'
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_emp_glp.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TRAVA DE CILINDRO GLP?',
             'PAINEL?',
@@ -342,13 +345,14 @@ if __name__ == '__main__':
             'ASSENTO?',
             'MANGUEIRA HIDRÁULICA?'
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_emp_pantografica.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -364,13 +368,14 @@ if __name__ == '__main__':
             'ASSENTO?',
             'LIMPEZA EXTERNA?'
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_emp_retratil.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -384,13 +389,14 @@ if __name__ == '__main__':
             'ASSENTO?',
             'LIMPEZA EXTERNA?'
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_emp_trilateral.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'PAINEL?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -410,13 +416,14 @@ if __name__ == '__main__':
             'RODAS AUXILIARES?'
 
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_paleteira_mp22.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TIMÃO?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -427,13 +434,14 @@ if __name__ == '__main__':
             'LIMPEZA EXTERNA?',
             'HÁ IDENTIFICAÇÃO DE CAPACIDADE DE CARGA?'
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_paleteira_mpc.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TIMÃO?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -443,13 +451,14 @@ if __name__ == '__main__':
             'CHAVE DE IGNIÇÃO?',
             'LIMPEZA EXTERNA?',
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_rebocador.drop(
         columns=[
             'ID',
-            'Qual  turno será realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'INDICADOR DE CARGA DE BATERIA?',
             'RODAS?',
@@ -460,13 +469,14 @@ if __name__ == '__main__':
             'CHECK LIST DE ACOMPANHAMENTO DE PLATAFORMA EXTRA BAIXA',
 
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     df_transpaleteira.drop(
         columns=[
             'ID',
-            'Qual  turno sera realizado o check list do equipamento?',
+            'Qual  turno será realizado o check list do equipamento?',
             'Qual Data Será Realizada o Check?',
             'TIMÃO?',
             'INDICADOR DE CARGA DE BATERIA?',
@@ -477,7 +487,8 @@ if __name__ == '__main__':
             'LIMPEZA EXTERNA?',
             'HÁ IDENTIFICAÇÃO DE CAPACIDADE DE CARGA?'
         ],
-        inplace=True
+        inplace=True,
+        errors='ignore',
     )
 
     # Limpeza de linhas
