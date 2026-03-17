@@ -100,7 +100,8 @@ def verificar_nok(df_equipamento, dict_key_column):
                                                                                    'Data da Realização',
                                                                                    'Hora da Realização',
                                                                                    'Nome',
-                                                                                   'Turno']]
+                                                                                   'Turno',
+                                                                                   'Observacao']]
                 coluna_quest['Status'] = situacao
                 df_data_ativo = pd.concat([
                     df_data_ativo,
@@ -112,7 +113,8 @@ def verificar_nok(df_equipamento, dict_key_column):
                           'Hora da Realização',
                           'Nome',
                           'Turno',
-                          'Status']]
+                          'Status',
+                          'Observacao']]
 
 
 def carregar_dados(user):
@@ -682,7 +684,8 @@ if __name__ == '__main__':
             verificar_nok(dict_dataframes[key], dict_status)
         ])
 
-    df_defeitos = df_defeitos[['Ativo', 'Data da Realização', 'Hora da Realização', 'Nome', 'Turno', 'Status']]
+    df_defeitos = df_defeitos[['Ativo', 'Data da Realização', 'Hora da Realização', 'Nome', 'Turno',
+                               'Status', 'Observacao']]
 
     del (
         df_emp_contrabalancada,
@@ -712,15 +715,15 @@ if __name__ == '__main__':
 
     # Merge com base de ativos
     df_relatorio_def = df_relatorio_def.merge(
-        df_ativo[['Ativo', 'Planta', 'Area']],
+        df_ativo[['Ativo', 'Descricao', 'Planta', 'Area']],
         on='Ativo',
         how='left'
     )
 
     # Ordenar colunas
     df_relatorio_def = df_relatorio_def[
-        ['Ativo', 'Planta', 'Area', 'Data da Realização',
-         'Hora da Realização', 'Nome', 'Turno', 'Status']
+        ['Ativo', 'Descricao', 'Planta', 'Area', 'Data da Realização',
+         'Hora da Realização', 'Nome', 'Turno', 'Status', 'Observacao']
     ]
 
     # Garantir formato datetime
@@ -782,6 +785,7 @@ if __name__ == '__main__':
     # ============================================================
 
     lista1_to = [
+        # "gutmeberg.gb@pg.com"
         "feitosa.j@pg.com",
         "fernandes.ff@pg.com",
         "araujo.ma.1@pg.com",
@@ -796,6 +800,7 @@ if __name__ == '__main__':
         "lopes.j.6@pg.com"
     ]
     lista2_cc = [
+        # "gutmeberg.gb@pg.com"
         "maciel.lt@pg.com",
         "correia.zc@pg.com",
         "brito.tb@pg.com",
