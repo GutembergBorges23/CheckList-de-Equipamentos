@@ -6,6 +6,45 @@ import os.path
 from datetime import datetime
 import win32com.client as win32
 
+def preparar_datas(df):
+
+    if 'Start time' not in df.columns:
+        return df
+
+    df['Start time'] = pd.to_datetime(df['Start time'])
+    df['End time'] = pd.to_datetime(df['End time'])
+
+    df['Data da Realização'] = df['Start time'].dt.date
+
+    df['Duração'] = (
+        df['End time'] - df['Start time']
+    ).dt.seconds
+
+    df['Hora da Realização'] = df['Start time'].dt.time
+
+    return df
+
+def normalizar_ativo(df):
+
+    if 'Ativo' in df.columns:
+
+        df['Ativo'] = (
+            df['Ativo']
+            .astype(str)
+            .str.strip()
+            .str.upper()
+            .str.replace(r'\.0$', '', regex=True)
+            .str.replace(r'\s+', '', regex=True)
+        )
+
+        # remover zeros à esquerda se for número
+        df['Ativo'] = df['Ativo'].apply(
+            lambda x: str(int(x)) if x.isdigit() else x
+        )
+
+    return df
+
+# Normalizar
 def normalizar_colunas(df):
     df.columns = [
         unicodedata.normalize('NFKD', col)
@@ -59,8 +98,14 @@ def ultimos_dias(last):
         dia = dt.datetime.now() - dt.timedelta(i)
         dia = dia.date()
         last_days.append(dia)
-        for feriado in gerar_lista(df_feriados['Data']):
-            if dia.weekday() == sunday or dia == feriado.date():
+        for feriado in df_feriados['Data']:
+            if (
+                    dia.weekday() == sunday
+                    or (
+                    pd.notna(feriado)
+                    and dia == feriado.date()
+            )
+            ):
                 last_days.pop()
                 break
         i += 1
@@ -89,32 +134,121 @@ def checar_datas(lista_datas, times, qnt_days):
 
 
 def verificar_nok(df_equipamento, dict_key_column):
-    list_ativos = gerar_lista(remover_duplicados(df_equipamento["Ativo"]))
-    df_data_ativo = pd.DataFrame(columns=['Data da Realização', 'Ativo'])
-    for status_column in dict_key_column:
-        if status_column in df_equipamento.columns:
-            situacao = dict_key_column[status_column]
-            for item in list_ativos:
-                coluna_quest = df_equipamento[df_equipamento['Ativo'] == item]
-                coluna_quest = coluna_quest[coluna_quest[status_column] == 'NOK'][['Ativo',
-                                                                                   'Data da Realização',
-                                                                                   'Hora da Realização',
-                                                                                   'Nome',
-                                                                                   'Turno',
-                                                                                   'Observacao']]
-                coluna_quest['Status'] = situacao
-                df_data_ativo = pd.concat([
-                    df_data_ativo,
-                    coluna_quest
-                ])
 
-    return df_data_ativo[['Ativo',
-                          'Data da Realização',
-                          'Hora da Realização',
-                          'Nome',
-                          'Turno',
-                          'Status',
-                          'Observacao']]
+    # ==============================
+    # Função interna de normalização
+    # ==============================
+
+    def normalizar_texto(texto):
+
+        texto = unicodedata.normalize('NFKD', str(texto))
+        texto = texto.encode('ascii', 'ignore').decode('utf-8')
+        texto = texto.strip().upper()
+
+        return texto
+
+    # ==============================
+    # Normalizar nomes das colunas
+    # ==============================
+
+    df_equipamento.columns = [
+        normalizar_texto(col)
+        for col in df_equipamento.columns
+    ]
+
+    # ==============================
+    # Garantir coluna ATIVO
+    # ==============================
+
+    if 'ATIVO' in df_equipamento.columns:
+
+        df_equipamento['ATIVO'] = (
+            df_equipamento['ATIVO']
+            .astype(str)
+            .str.strip()
+        )
+
+    # ==============================
+    # Normalizar dict de status
+    # ==============================
+
+    dict_norm = {
+        normalizar_texto(k): v
+        for k, v in dict_key_column.items()
+    }
+
+    lista_resultados = []
+
+    # ==============================
+    # Loop nas colunas de status
+    # ==============================
+
+    for status_column, situacao in dict_norm.items():
+
+        if status_column in df_equipamento.columns:
+
+            filtro_nok = (
+                df_equipamento[status_column]
+                .astype(str)
+                .str.strip()
+                .str.upper()
+                .str.contains('NOK', na=False)
+            )
+
+            coluna_quest = df_equipamento.loc[
+                filtro_nok,
+                [
+                    'ATIVO',
+                    'DATA DA REALIZACAO',
+                    'HORA DA REALIZACAO',
+                    'NOME',
+                    'TURNO',
+                    'OBSERVACAO'
+                ]
+            ].copy()
+
+            if not coluna_quest.empty:
+
+                coluna_quest['STATUS'] = situacao
+
+                lista_resultados.append(coluna_quest)
+
+    # ==============================
+
+    if lista_resultados:
+
+        df_data_ativo = pd.concat(
+            lista_resultados,
+            ignore_index=True
+        )
+
+    else:
+
+        df_data_ativo = pd.DataFrame(columns=[
+            'ATIVO',
+            'DATA DA REALIZACAO',
+            'HORA DA REALIZACAO',
+            'NOME',
+            'TURNO',
+            'STATUS',
+            'OBSERVACAO'
+        ])
+
+    # ==============================
+    # Renomear para formato amigável
+    # ==============================
+
+    df_data_ativo = df_data_ativo.rename(columns={
+        'ATIVO': 'Ativo',
+        'DATA DA REALIZACAO': 'Data da Realização',
+        'HORA DA REALIZACAO': 'Hora da Realização',
+        'NOME': 'Nome',
+        'TURNO': 'Turno',
+        'STATUS': 'Status',
+        'OBSERVACAO': 'Observacao'
+    })
+
+    return df_data_ativo
 
 
 def carregar_dados(user):
@@ -171,13 +305,19 @@ def carregar_dados(user):
 
     print('Upload da base de dados comcluido!')
 
+    if 'Data' in df_feriados.columns:
+        df_feriados['Data'] = pd.to_datetime(
+            df_feriados['Data'],
+            errors='coerce'
+        )
 
 def add_turno(df_ativos):
+
     p_turno = dt.time(6, 0, 0)
     s_turno = dt.time(14, 0, 0)
     t_turno = dt.time(22, 0, 0)
 
-    df_ativo['Turno'] = ' '
+    df_ativos['Turno'] = ' '
 
     df_ativos.loc[
         (df_ativos['Hora da Realização'] >= p_turno) &
@@ -202,7 +342,7 @@ def add_turno(df_ativos):
 
 if __name__ == '__main__':
 
-    users = ['gutemberg.gb', 'wanderson.wf']
+    users = ['gutemberg.gb']
 
     cod_user = 0
 
@@ -502,31 +642,22 @@ if __name__ == '__main__':
 
     # Tipagem de colunas
 
-    df_emp_contrabalancada['Ativo'] = df_emp_contrabalancada['Ativo'].astype(str)
-    df_jack_stand['Ativo'] = df_jack_stand['Ativo'].astype(str)
-    df_matrim_manual['Ativo'] = df_matrim_manual['Ativo'].astype(str)
-    df_emp_glp['Ativo'] = df_emp_glp['Ativo'].astype(str)
-    df_emp_pantografica['Ativo'] = df_emp_pantografica['Ativo'].astype(str)
-    df_emp_retratil['Ativo'] = df_emp_retratil['Ativo'].astype(str)
-    df_emp_trilateral['Ativo'] = df_emp_trilateral['Ativo'].astype(str)
-    df_paleteira_mp22['Ativo'] = df_paleteira_mp22['Ativo'].astype(str)
-    df_paleteira_mpc['Ativo'] = df_paleteira_mpc['Ativo'].astype(str)
-    df_rebocador['Ativo'] = df_rebocador['Ativo'].astype(str)
-    df_transpaleteira['Ativo'] = df_transpaleteira['Ativo'].astype(str)
-
-    # Limpa espaços no começo e no fim da string. ['Ativo']
-
-    df_emp_contrabalancada['Ativo'] = df_emp_contrabalancada['Ativo'].map(lambda string: string.strip())
-    df_jack_stand['Ativo'] = df_jack_stand['Ativo'].map(lambda string: string.strip())
-    df_matrim_manual['Ativo'] = df_matrim_manual['Ativo'].map(lambda string: string.strip())
-    df_emp_glp['Ativo'] = df_emp_glp['Ativo'].map(lambda string: string.strip())
-    df_emp_pantografica['Ativo'] = df_emp_pantografica['Ativo'].map(lambda string: string.strip())
-    df_emp_retratil['Ativo'] = df_emp_retratil['Ativo'].map(lambda string: string.strip())
-    df_emp_trilateral['Ativo'] = df_emp_trilateral['Ativo'].map(lambda string: string.strip())
-    df_paleteira_mp22['Ativo'] = df_paleteira_mp22['Ativo'].map(lambda string: string.strip())
-    df_paleteira_mpc['Ativo'] = df_paleteira_mpc['Ativo'].map(lambda string: string.strip())
-    df_rebocador['Ativo'] = df_rebocador['Ativo'].map(lambda string: string.strip())
-    df_transpaleteira['Ativo'] = df_transpaleteira['Ativo'].map(lambda string: string.strip())
+    # Normalizar todos os DataFrames
+    for df in [
+        df_emp_contrabalancada,
+        df_jack_stand,
+        df_matrim_manual,
+        df_emp_glp,
+        df_emp_pantografica,
+        df_emp_retratil,
+        df_emp_trilateral,
+        df_paleteira_mp22,
+        df_paleteira_mpc,
+        df_rebocador,
+        df_transpaleteira,
+        df_ativo
+    ]:
+        normalizar_ativo(df)
 
     # Lista com todos os ativos dos equipamentos
 
@@ -535,95 +666,20 @@ if __name__ == '__main__':
     # Tratamento das datas
 
     # tipagem de datas Start time e end time
-
-    df_emp_contrabalancada['Start time'] = pd.to_datetime(df_emp_contrabalancada['Start time'])
-    df_emp_contrabalancada['End time'] = pd.to_datetime(df_emp_contrabalancada['End time'])
-    df_jack_stand['Start time'] = pd.to_datetime(df_jack_stand['Start time'])
-    df_jack_stand['End time'] = pd.to_datetime(df_jack_stand['End time'])
-    df_matrim_manual['Start time'] = pd.to_datetime(df_matrim_manual['Start time'])
-    df_matrim_manual['End time'] = pd.to_datetime(df_matrim_manual['End time'])
-    df_emp_glp['Start time'] = pd.to_datetime(df_emp_glp['Start time'])
-    df_emp_glp['End time'] = pd.to_datetime(df_emp_glp['End time'])
-    df_emp_pantografica['Start time'] = pd.to_datetime(df_emp_pantografica['Start time'])
-    df_emp_pantografica['End time'] = pd.to_datetime(df_emp_pantografica['End time'])
-    df_emp_retratil['Start time'] = pd.to_datetime(df_emp_retratil['Start time'])
-    df_emp_retratil['End time'] = pd.to_datetime(df_emp_retratil['End time'])
-    df_emp_trilateral['Start time'] = pd.to_datetime(df_emp_trilateral['Start time'])
-    df_emp_trilateral['End time'] = pd.to_datetime(df_emp_trilateral['End time'])
-    df_paleteira_mp22['Start time'] = pd.to_datetime(df_paleteira_mp22['Start time'])
-    df_paleteira_mp22['End time'] = pd.to_datetime(df_paleteira_mp22['End time'])
-    df_paleteira_mpc['Start time'] = pd.to_datetime(df_paleteira_mpc['Start time'])
-    df_paleteira_mpc['End time'] = pd.to_datetime(df_paleteira_mpc['End time'])
-    df_rebocador['Start time'] = pd.to_datetime(df_rebocador['Start time'])
-    df_rebocador['End time'] = pd.to_datetime(df_rebocador['End time'])
-    df_transpaleteira['Start time'] = pd.to_datetime(df_transpaleteira['Start time'])
-    df_transpaleteira['End time'] = pd.to_datetime(df_transpaleteira['End time'])
-
-    df_emp_contrabalancada['Data da Realização'] = df_emp_contrabalancada['Start time'].dt.date
-    df_emp_contrabalancada['Duração'] = (
-            df_emp_contrabalancada['End time'] - df_emp_contrabalancada['Start time']
-    ).dt.seconds
-    df_emp_contrabalancada['Hora da Realização'] = df_emp_contrabalancada['Start time'].dt.time
-
-    df_jack_stand['Data da Realização'] = df_jack_stand['Start time'].dt.date
-    df_jack_stand['Duração'] = (
-            df_jack_stand['End time'] - df_jack_stand['Start time']
-    ).dt.seconds
-    df_jack_stand['Hora da Realização'] = df_jack_stand['Start time'].dt.time
-
-    df_matrim_manual['Data da Realização'] = df_matrim_manual['Start time'].dt.date
-    df_matrim_manual['Duração'] = (
-            df_matrim_manual['End time'] - df_matrim_manual['Start time']
-    ).dt.seconds
-    df_matrim_manual['Hora da Realização'] = df_matrim_manual['Start time'].dt.time
-
-    df_emp_glp['Data da Realização'] = df_emp_glp['Start time'].dt.date
-    df_emp_glp['Duração'] = (
-            df_emp_glp['End time'] - df_emp_glp['Start time']
-    ).dt.seconds
-    df_emp_glp['Hora da Realização'] = df_emp_glp['Start time'].dt.time
-
-    df_emp_pantografica['Data da Realização'] = df_emp_pantografica['Start time'].dt.date
-    df_emp_pantografica['Duração'] = (
-            df_emp_pantografica['End time'] - df_emp_pantografica['Start time']
-    ).dt.seconds
-    df_emp_pantografica['Hora da Realização'] = df_emp_pantografica['Start time'].dt.time
-
-    df_emp_retratil['Data da Realização'] = df_emp_retratil['Start time'].dt.date
-    df_emp_retratil['Duração'] = (
-            df_emp_retratil['End time'] - df_emp_retratil['Start time']
-    ).dt.seconds
-    df_emp_retratil['Hora da Realização'] = df_emp_retratil['Start time'].dt.time
-
-    df_emp_trilateral['Data da Realização'] = df_emp_trilateral['Start time'].dt.date
-    df_emp_trilateral['Duração'] = (
-            df_emp_trilateral['End time'] - df_emp_trilateral['Start time']
-    ).dt.seconds
-    df_emp_trilateral['Hora da Realização'] = df_emp_trilateral['Start time'].dt.time
-
-    df_paleteira_mp22['Data da Realização'] = df_paleteira_mp22['Start time'].dt.date
-    df_paleteira_mp22['Duração'] = (
-            df_paleteira_mp22['End time'] - df_paleteira_mp22['Start time']
-    ).dt.seconds
-    df_paleteira_mp22['Hora da Realização'] = df_paleteira_mp22['Start time'].dt.time
-
-    df_paleteira_mpc['Data da Realização'] = df_paleteira_mpc['Start time'].dt.date
-    df_paleteira_mpc['Duração'] = (
-            df_paleteira_mpc['End time'] - df_paleteira_mpc['Start time']
-    ).dt.seconds
-    df_paleteira_mpc['Hora da Realização'] = df_paleteira_mpc['Start time'].dt.time
-
-    df_rebocador['Data da Realização'] = df_rebocador['Start time'].dt.date
-    df_rebocador['Duração'] = (
-            df_rebocador['End time'] - df_rebocador['Start time']
-    ).dt.seconds
-    df_rebocador['Hora da Realização'] = df_rebocador['Start time'].dt.time
-
-    df_transpaleteira['Data da Realização'] = df_transpaleteira['Start time'].dt.date
-    df_transpaleteira['Duração'] = (
-            df_transpaleteira['End time'] - df_transpaleteira['Start time']
-    ).dt.seconds
-    df_transpaleteira['Hora da Realização'] = df_transpaleteira['Start time'].dt.time
+    for df in [
+        df_emp_contrabalancada,
+        df_jack_stand,
+        df_matrim_manual,
+        df_emp_glp,
+        df_emp_pantografica,
+        df_emp_retratil,
+        df_emp_trilateral,
+        df_paleteira_mp22,
+        df_paleteira_mpc,
+        df_rebocador,
+        df_transpaleteira
+    ]:
+        preparar_datas(df)
 
     dict_dataframes = {
         lista_equipamentos[0]: df_emp_contrabalancada,
@@ -646,43 +702,115 @@ if __name__ == '__main__':
 
     df_defeitos = pd.DataFrame(columns=['Data da Realização', 'Ativo', 'Status'])
     dict_status = {
-        'VAZAMENTO DE ÓLEO?': 'Óleo',
-        'CÓDIGO DE FALHA?': 'Código de falha',
-        'TRAVA DE BATERIA?': 'Bateria',
+        # Sistema mecânico / segurança
+        'VAZAMENTO DE ÓLEO?': 'Vazamento de óleo',
+        'MANGUEIRA HIDRÁULICA?': 'Mangueira hidráulica',
+        'MANGUEIRAS HIDRÁLICAS': 'Mangueira hidráulica',
+        'SISTEMA HIDRAÚLICO: SEM VAZAMENTO E/OU NENHUM DANO?': 'Sistema hidráulico',
+
+        # Bateria / energia
+        'TRAVA DE BATERIA?': 'Trava de bateria',
+        'ÁGUA DA BATERIA?': 'Água da bateria',
+        'AGUÁ DE BATERIA': 'Água da bateria',
+        'INDICADOR DE CARGA DE BATERIA?': 'Indicador de carga da bateria',
+        'CABO DE ALIMENTAÇÃO DA BATERIA?': 'Cabo de alimentação da bateria',
+        'CONECTORES?': 'Conectores',
+        'CONECTORES': 'Conectores',
+        'BASE DE FIXAÇÃO DOS CABOS?': 'Base de fixação dos cabos',
+
+        # Controles operacionais
         'ACELERADOR?': 'Acelerador',
         'FREIO?': 'Freio',
         'FREIO DE MÃO?': 'Freio de mão',
-        'BUZINA?': 'Buzina',
-        'TRAVA DE CILINDRO GLP?': 'Trava de cilindro',
         'FREIO MAGNÉTICO?': 'Freio magnético',
-        'AGUÁ DE BATERIA': 'Aguá de bateria',
+        'BUZINA?': 'Buzina',
         'BOTÃO DE EMERGÊNCIA?': 'Botão de emergência',
+        'CHAVE DE IGNIÇÃO?': 'Chave de ignição',
+        'TIMÃO?': 'Timão',
+        'PAINEL?': 'Painel',
+
+        # Alarmes e segurança
+        'CINTO DE SEGURANÇA?': 'Cinto de segurança',
+        'ALARME SONORO CINTO DE SEGURANÇA?': 'Alarme do cinto',
+        'ALARME SONORO DE RÉ?': 'Alarme de ré',
+        'ALARME SONORO CINTO DE RÉ?': 'Alarme de ré',
+        'EXTINTOR?': 'Extintor',
+
+        # Estrutura e movimentação
+        'RODAS?': 'Rodas',
+        'RODAS AUXILIARES?': 'Rodas auxiliares',
+        'RODAS DIANTEIRA GIRAM LIVREMENTE SEM TRAVAMENTO NO EIXO?': 'Rodas dianteiras',
+        'RODA DE APOIO GIRAM LIVREMENTE SEM TRAVAMENTO NO EIXO?': 'Rodas de apoio',
+        'GARFOS?': 'Garfos',
+        'GARFOS SEM RUPTURA E/OU EMPENAMENTOS?': 'Garfos',
+        'RUÍDOS?': 'Ruídos',
+        'RETROVISORES?': 'Retrovisores',
+
+        # Iluminação
+        'FARÓIS E LANTERNAS?': 'Faróis e lanternas',
+
+        # Operação e registro
+        'HORÍMETRO POR TURNO?': 'Horímetro',
+        'CÓDIGO DE FALHA?': 'Código de falha',
+
+        # Condição geral
+        'ASSENTO?': 'Assento',
+        'LIMPEZA EXTERNA?': 'Limpeza externa',
+        'PINTURA?': 'Pintura',
+
+        # Identificação
+        'HÁ IDENTIFICAÇÃO DE CAPACIDADE DE CARGA?': 'Identificação de capacidade',
+        'HÁ IDENTIFICAÇÃO DE ETIQUETA DE INSPEÇÃO DO EQUIPAMENTO?': 'Etiqueta de inspeção',
+        'HÁ IDENTIFICAÇÃO DE CAPACIDADE E ATIVO?': 'Identificação do ativo',
+
+        # Plataforma / reboque
+        'SUPORTE DE ENGATE DA PLATAFORMA?': 'Suporte de engate',
+        'VERIFICAR DANOS NOS RODIZIOS (RODA)?': 'Rodízios',
+        'VERIFICAR ESTRUTURA X EQUIPAMENTO?': 'Estrutura',
+        'VERIFICAR O PEGADOR?': 'Pegador',
+        'VERIFICAR CAMBÃO DE ATRELAMENTO?': 'Cambão de atrelamento',
+        'VERIFICAR TRAVA DAS PLATAFORMAS?': 'Trava das plataformas',
+
+        # Jack / elevação manual
         'Mecanismo de elevação (manivela) está baixando e subindo corretamente?': 'Mecanismo de elevação',
         'A manivela está girando suavemente?': 'Manivela',
         'Existe algum tipo de folga nos parafuros da manivela?': 'Parafusos da manivela',
         'As rodas giram livremente sem travamento?': 'Travamento nas rodas',
-        'Os pneus estão com algum tipo de vazamento?': 'Pneus',
-        'Os pneus estão em condições de uso?': 'Pneus',
-        'A superfície plana está em boas condições, sem avarias?': 'Condições da superfície',
-        'O pedestal está em boas condições, sem avarias?': 'Condições do pedestal',
-        'SISTEMA HIDRAÚLICO: SEM VAZAMENTO E/OU NENHUM DANO?': 'Sistema hidráulico',
-        'RODAS DIANTEIRA GIRAM LIVREMENTE SEM TRAVAMENTO NO EIXO?': 'Rodas dianteiras',
-        'RODA DE APOIO GIRAM LIVREMENTE SEM TRAVAMENTO NO EIXO?': 'Rodas de apoio',
+        'Os pneus estão com algum tipo de vazamento?': 'Vazamento nos pneus',
+        'Os pneus estão em condições de uso?': 'Condição dos pneus',
+        'A superfície plana está em boas condições, sem avarias?': 'Superfície',
+        'O pedestal está em boas condições, sem avarias?': 'Pedestal',
+        'As manoplas de borracha se encontram posicionadas no Jack Stands?': 'Manoplas',
+        'O equipamento está lubrificado?': 'Lubrificação',
+
+        # Sistema de elevação
         'MECANISMO DE ELEVAÇÃO ESTÁ BAIXANDO E/OU ELEVANDO O GARFO CORRETAMENTE?': 'Mecanismo de elevação',
-        'MOLA DE RETORNO VERTICAL ESTÁ FIXADA, ESTÁ ELEVANDO O TIMÃO?': 'Mola de Retorno',
-        'SUPORTE DE ENGATE DA PLATAFORMA?': 'Suporte de engate',
-        'VERIFICAR DANOS NOS RODIZIOS (RODA)?': 'Danos nos rodizios',
-        'VERIFICAR ESTRUTURA X EQUIPAMENTO?': 'Estrutura x Equipamento',
-        'VERIFICAR O PEGADOR?': 'Pegador',
-        'VERIFICAR CAMBÃO DE ATRELAMENTO?': 'Cambão de atrelamento',
-        'VERIFICAR TRAVA DAS PLATAFORMAS?': 'Trava das plataformas'
+        'MOLA DE RETORNO VERTICAL ESTÁ FIXADA, ESTÁ ELEVANDO O TIMÃO?': 'Mola de retorno',
+
+        # Outros
+        'INDICADOR DE CARGA DE GÁS?': 'Indicador de carga de gás',
+        'TRAVA DE CILINDRO GLP?': 'Trava de cilindro GLP',
+        'BOTÃO DE ACIONAMENTO DO TRILHO (ON / OFF)?': 'Botão do trilho',
+        'COMANDO DE DIREÇÃO (FRENTE E RÉ + ELEVAÇÃO DA CABINE)?': 'Comando de direção',
     }
 
+    lista_defeitos = []
+
     for key in dict_dataframes:
-        df_defeitos = pd.concat([
-            df_defeitos,
-            verificar_nok(dict_dataframes[key], dict_status)
-        ])
+
+        df_temp = verificar_nok(
+            dict_dataframes[key],
+            dict_status
+        )
+
+        if not df_temp.empty:
+            lista_defeitos.append(df_temp)
+
+    if lista_defeitos:
+        df_defeitos = pd.concat(
+            lista_defeitos,
+            ignore_index=True
+        )
 
     df_defeitos = df_defeitos[['Ativo', 'Data da Realização', 'Hora da Realização', 'Nome', 'Turno',
                                'Status', 'Observacao']]
@@ -710,8 +838,16 @@ if __name__ == '__main__':
     df_relatorio_def = df_defeitos.copy()
 
     # Garantir tipo string para merge
-    df_ativo['Ativo'] = df_ativo['Ativo'].astype(str)
-    df_relatorio_def['Ativo'] = df_relatorio_def['Ativo'].astype(str)
+    normalizar_ativo(df_ativo)
+    normalizar_ativo(df_relatorio_def)
+
+    print("Qtd ativos no relatório:", df_relatorio_def['Ativo'].nunique())
+    print("Qtd ativos no cadastro:", df_ativo['Ativo'].nunique())
+
+    faltando = set(df_relatorio_def['Ativo']) - set(df_ativo['Ativo'])
+
+    print("Quantidade sem correspondência:", len(faltando))
+    print(sorted(faltando))
 
     # Merge com base de ativos
     df_relatorio_def = df_relatorio_def.merge(
@@ -734,10 +870,15 @@ if __name__ == '__main__':
     # Data de hoje
     data_hoje = pd.Timestamp.today().normalize()
 
-    # Filtrar apenas hoje
-    df_relatorio_def = df_relatorio_def[
+    # 📌 DataFrame do DIA (para e-mail)
+    df_dia = df_relatorio_def[
         df_relatorio_def['Data da Realização'].dt.normalize() == data_hoje
-        ]
+    ]
+
+    # 📌 DataFrame do MÊS (para e-mail)
+    df_mes = df_relatorio_def[
+        df_relatorio_def['Data da Realização'].dt.to_period('M') == data_hoje.to_period('M')
+    ]
 
     # ============================================================
     # EXPORTAR EXCEL
@@ -748,7 +889,7 @@ if __name__ == '__main__':
     caminho_defeitos_xlsx = os.path.join(caminho_defeitos, arquivo_def)
 
     with pd.ExcelWriter(caminho_defeitos_xlsx, engine="xlsxwriter") as writer:
-        df_relatorio_def.to_excel(
+        df_mes.to_excel(
             writer,
             sheet_name="Defeitos",
             index=False,
@@ -759,9 +900,9 @@ if __name__ == '__main__':
         workbook = writer.book
         worksheet = writer.sheets["Defeitos"]
 
-        max_row, max_col = df_relatorio_def.shape
+        max_row, max_col = df_mes.shape
 
-        column_settings = [{'header': col} for col in df_relatorio_def.columns]
+        column_settings = [{'header': col} for col in df_mes.columns]
 
         worksheet.add_table(
             0, 0, max_row, max_col - 1,
@@ -785,7 +926,7 @@ if __name__ == '__main__':
     # ============================================================
 
     lista1_to = [
-        # "gutmeberg.gb@pg.com"
+        # "gutemberg.gb@pg.com"
         "feitosa.j@pg.com",
         "fernandes.ff@pg.com",
         "araujo.ma.1@pg.com",
@@ -800,7 +941,7 @@ if __name__ == '__main__':
         "lopes.j.6@pg.com"
     ]
     lista2_cc = [
-        # "gutmeberg.gb@pg.com"
+        # "gutemberg.gb@pg.com"
         "maciel.lt@pg.com",
         "correia.zc@pg.com",
         "brito.tb@pg.com",
@@ -813,9 +954,9 @@ if __name__ == '__main__':
     # HTML (APENAS UMA TABELA)
     # ============================================================
 
-    if not df_relatorio_def.empty:
+    if not df_dia.empty:
 
-        df_html = df_relatorio_def.copy()
+        df_html = df_dia.copy()
 
         df_html['Data da Realização'] = df_html['Data da Realização'].dt.strftime('%d/%m/%Y')
 
